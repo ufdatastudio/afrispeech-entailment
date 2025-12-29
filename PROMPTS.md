@@ -657,4 +657,3 @@ For your first paper, we strongly recommend focusing on:
 - Plausibility (Medical, General)
 - Commonsense (AfriSpeech–Parliament only)
 
-This keeps the story tight, coherent, and defensible while demonstrating the core capabilities of audio-semantic reasoning.
