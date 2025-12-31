@@ -215,8 +215,12 @@ __marimo__/
 *.m4a
 Audio/
 
-# Output directories (inference results - can be large)
+# Output directories - allow JSONL files (inference results)
+# Exclude other large files but allow JSONL
 outputs/
+!outputs/**/*.jsonl
+!outputs/README.md
+!outputs/**/README.md
 
 # Large files
 *.zip
