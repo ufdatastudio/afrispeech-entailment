@@ -214,9 +214,12 @@ __marimo__/
 *.ogg
 *.m4a
 Audio/
-*.zip
 
-# Large files (over 100MB)
+# Output directories (inference results - can be large)
+outputs/
+
+# Large files
+*.zip
 *.tar.gz
 *.tar.bz2
 *.7z

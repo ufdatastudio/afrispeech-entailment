@@ -1,0 +1,94 @@
+{
+  "tasks": {
+    "medical_consistency": {
+      "task": "consistency",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Medical/Llama/consistency/medical_consistency.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/medical",
+      "output_prefix": "medical_consistency"
+    },
+    "medical_nli": {
+      "task": "nli",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Medical/Llama/nli/medical_nli.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/medical",
+      "output_prefix": "medical_nli"
+    },
+    "medical_plausibility": {
+      "task": "plausibility",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Medical/Llama/plausibility/medical_plausibility.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/medical",
+      "output_prefix": "medical_plausibility"
+    },
+    "parliament_nli": {
+      "task": "nli",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Parliament/Llama/nli/parliament_nli.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/parliament",
+      "output_prefix": "parliament_nli",
+      "note": "Audio directory placeholder - fill when audio is available"
+    },
+    "parliament_consistency": {
+      "task": "consistency",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Parliament/Llama/consistency/parliament_consistency.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/parliament",
+      "output_prefix": "parliament_consistency",
+      "note": "Audio directory placeholder - fill when audio is available"
+    },
+    "parliament_intent": {
+      "task": "intent",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Parliament/Llama/intent/parliament_intent.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/parliament",
+      "output_prefix": "parliament_intent",
+      "note": "Audio directory placeholder - fill when audio is available"
+    },
+    "parliament_commonsense": {
+      "task": "commonsense",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/Parliament/Llama/commonsense/parliament_commonsense.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/parliament",
+      "output_prefix": "parliament_commonsense",
+      "note": "Audio directory placeholder - fill when audio is available"
+    },
+    "afrispeech200_consistency": {
+      "task": "consistency",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriSpeech200/Llama/consistency_single/afrispeech200_consistency_top100.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/Afrispeech200",
+      "output_prefix": "afrispeech200_consistency",
+      "note": "Using top100 version - if file doesn't exist, use afrispeech200_consistency.jsonl"
+    },
+    "afrispeech200_nli": {
+      "task": "nli",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriSpeech200/Llama/nli_single/afrispeech200_nli_top100.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/Afrispeech200",
+      "output_prefix": "afrispeech200_nli"
+    },
+    "afrispeech200_plausibility": {
+      "task": "plausibility",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriSpeech200/Llama/plausibility_single/afrispeech200_plausibility_top100.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/Afrispeech200",
+      "output_prefix": "afrispeech200_plausibility"
+    },
+    "general_consistency": {
+      "task": "consistency",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriSpeechGeneral/Llama/consistency/afrispeech_general_consistency.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/general",
+      "output_prefix": "general_consistency"
+    },
+    "general_plausibility": {
+      "task": "plausibility",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriSpeechGeneral/Llama/plausibility/afrispeech_general_plausibility.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/general",
+      "output_prefix": "general_plausibility"
+    },
+    "afrinames_restraint": {
+      "task": "restraint",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriNames/Llama/restraint/afri_names_restraint_top100.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/Afrinames",
+      "output_prefix": "afrinames_restraint"
+    },
+    "afrinames_accent_drift": {
+      "task": "accent_drift",
+      "jsonl_path": "/orange/ufdatastudios/c.okocha/Afro_entailment/result/Entailment/AfriNames/Llama/accent_drift/afri_names_accent_top100.jsonl",
+      "audio_dir": "/orange/ufdatastudios/c.okocha/Afro_entailment/Audio/Afrinames",
+      "output_prefix": "afrinames_accent_drift"
+    }
+  }
+}
+
