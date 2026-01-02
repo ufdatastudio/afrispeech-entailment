@@ -57,12 +57,12 @@ JSONL_PATH="JSONL_PATH_PLACEHOLDER"
 AUDIO_DIR="AUDIO_DIR_PLACEHOLDER"
 TASK_NAME="TASK_NAME"
 OUTPUT_BASE="/orange/ufdatastudios/c.okocha/Afro_entailment/outputs"
-MODEL_NAME_PLACEHOLDER="MODEL_NAME_PLACEHOLDER"
-OUT_DIR="${OUTPUT_BASE}/${MODEL_NAME_PLACEHOLDER}/${TASK_NAME}"
+MODEL_NAME_VAR="MODEL_NAME_PLACEHOLDER"
+OUT_DIR="${OUTPUT_BASE}/${MODEL_NAME_VAR}/${TASK_NAME}"
 RESULTS_DIR="${OUT_DIR}/results"
 LOGS_DIR="${OUT_DIR}/logs"
 OUTPUT_PREFIX="OUTPUT_PREFIX"
-OUT_JSONL="${RESULTS_DIR}/${MODEL_NAME_PLACEHOLDER}_${OUTPUT_PREFIX}.jsonl"
+OUT_JSONL="${RESULTS_DIR}/${MODEL_NAME_VAR}_${OUTPUT_PREFIX}.jsonl"
 MODEL_PATH="MODEL_PATH_HERE"
 TASK="TASK_TYPE"
 
@@ -96,10 +96,10 @@ echo "Output: ${OUT_JSONL}"
 srun -N 1 --gpus 1 --cpus-per-task 8 \
   python infer_jsonl.py \
     --model_path "${MODEL_PATH}" \
-    --jsonl_path "${JSONL_PATH}" \
+    ARG_JSONL_PATH \
     --audio_dir "${AUDIO_DIR}" \
     --task "${TASK}" \
-    --out_jsonl "${OUT_JSONL}" \
+    ARG_OUTPUT_JSONL \
     --max_new_tokens 512
 
 echo "Done. Results in ${RESULTS_DIR}, logs in ${LOGS_DIR}"

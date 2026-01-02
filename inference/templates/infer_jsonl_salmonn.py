@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Generic JSONL-based audio entailment inference script.
-
-Reads JSONL files with hypotheses and runs audio-language model inference.
-Can be copied to each model's folder and customized.
+SALMONN inference script for JSONL-based audio entailment tasks.
+Adapted from SALMONN's cli_inference.py to work with our JSONL format.
 """
 import json
 import os
 import argparse
-import re
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Import your model here - customize per model
-# Example: from kimia_infer.api.kimia import KimiAudio
-# Or: from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+import torch
+from transformers import WhisperFeatureExtractor
+
+# SALMONN imports
+from config import Config
+from models.salmonn import SALMONN
+from utils import prepare_one_sample
 
 
 # ========== TASK PROMPT TEMPLATES ==========
@@ -101,7 +102,11 @@ STATEMENT:
 
     "accent_drift": """You are given an audio recording of spoken speech and a text statement.
 
-Determine whether the statement is true based on the semantic content of the audio, regardless of accent or pronunciation.
+Based only on the content of the audio, determine whether the statement is:
+- True (supported by the audio)
+- False (not supported by the audio)
+
+Do not assume any information not present in the audio.
 
 Respond with one of the following labels only:
 TRUE
@@ -112,150 +117,146 @@ STATEMENT:
 }
 
 
-# ========== LABEL NORMALIZATION ==========
-
-def _match_label(text: str, labels: Tuple[str, ...]) -> Optional[str]:
-    """Return the first matching label from the sorted set of labels."""
-    for lab in sorted(labels, key=len, reverse=True):
-        pattern = rf"\\b{re.escape(lab)}\\b"
-        if re.search(pattern, text):
-            return lab
-    return None
-
-
 def normalize_label(text: str, task: str) -> str:
-    """Extract canonical label from model output."""
-    if not isinstance(text, str):
+    """Normalize model output to canonical labels."""
+    if not text:
         return "UNPARSEABLE"
-
-    t = text.strip().upper()
-
+    
+    text_lower = text.strip().lower()
+    
     if task == "nli":
-        match = _match_label(t, ("ENTAILMENT", "CONTRADICTION", "NEUTRAL"))
+        if "entail" in text_lower or text_lower.startswith("entail"):
+            return "ENTAILMENT"
+        elif "contradict" in text_lower or text_lower.startswith("contradict"):
+            return "CONTRADICTION"
+        elif "neutral" in text_lower or "neither" in text_lower:
+            return "NEUTRAL"
+    
     elif task == "consistency":
-        match = _match_label(t, ("INCONSISTENT", "CONSISTENT"))
+        if "consistent" in text_lower:
+            return "CONSISTENT"
+        elif "inconsistent" in text_lower:
+            return "INCONSISTENT"
+    
     elif task == "plausibility":
-        match = _match_label(t, ("IMPLAUSIBLE", "PLAUSIBLE"))
+        if "plausible" in text_lower:
+            return "PLAUSIBLE"
+        elif "implausible" in text_lower:
+            return "IMPLAUSIBLE"
+    
     elif task == "intent":
-        # Return as-is, or extract from options
-        return t
+        return text.strip()
+    
     elif task == "commonsense":
-        match = _match_label(t, ("YES", "NO"))
+        if text_lower.startswith("yes") or text_lower == "y":
+            return "YES"
+        elif text_lower.startswith("no") or text_lower == "n":
+            return "NO"
+    
     elif task == "restraint":
-        match = _match_label(t, ("UNSUPPORTED", "SUPPORTED"))
+        if "support" in text_lower and "not" not in text_lower:
+            return "SUPPORTED"
+        elif "not support" in text_lower or "unsupport" in text_lower:
+            return "UNSUPPORTED"
+    
     elif task == "accent_drift":
-        match = _match_label(t, ("FALSE", "TRUE"))
-    else:
-        match = None
-
-    return match if match else "UNPARSEABLE"
-
-
-# ========== HYPOTHESIS EXTRACTION ==========
-
-def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, str]]:
-    """
-    Extract (hypothesis, gold_label) pairs from JSONL record.
+        if text_lower.startswith("true") or text_lower == "t":
+            return "TRUE"
+        elif text_lower.startswith("false") or text_lower == "f":
+            return "FALSE"
     
-    Returns: List of (hypothesis_text, gold_label) tuples.
-    """
-    output = record.get("output", {})
-    if not isinstance(output, dict):
-        return []
-    
+    return "UNPARSEABLE"
+
+
+def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]]]:
+    """Extract hypotheses and gold labels from JSONL record."""
     hypotheses = []
     
-    if task == "nli":
-        # Extract from entailment, neutral, contradiction lists
-        for label in ["entailment", "neutral", "contradiction"]:
-            hyps = output.get(label, [])
-            if isinstance(hyps, list):
-                for hyp in hyps:
-                    if isinstance(hyp, str) and hyp.strip():
-                        hypotheses.append((hyp.strip(), label.upper()))
-    
-    elif task == "consistency":
-        # Extract from consistent, inconsistent lists
-        for label in ["consistent", "inconsistent"]:
-            hyps = output.get(label, [])
-            if isinstance(hyps, list):
-                for hyp in hyps:
-                    if isinstance(hyp, str) and hyp.strip():
-                        hypotheses.append((hyp.strip(), label.upper()))
-    
-    elif task == "plausibility":
-        # Extract from plausible, implausible lists
-        for label in ["plausible", "implausible"]:
-            hyps = output.get(label, [])
-            if isinstance(hyps, list):
-                for hyp in hyps:
-                    if isinstance(hyp, str) and hyp.strip():
-                        hypotheses.append((hyp.strip(), label.upper()))
-    
-    elif task == "intent":
-        # Extract from intent list
-        intents = output.get("intent", [])
-        if isinstance(intents, list):
-            for intent in intents:
-                if isinstance(intent, str) and intent.strip():
-                    hypotheses.append((intent.strip(), "INTENT"))
-    
-    elif task == "commonsense":
-        # Extract from commonsense_inference list
-        inferences = output.get("commonsense_inference", [])
-        if isinstance(inferences, list):
-            for inf in inferences:
-                if isinstance(inf, str) and inf.strip():
-                    # For commonsense, we might need to formulate as question
-                    hypotheses.append((inf.strip(), "COMMONSENSE"))
-    
-    elif task == "restraint":
-        # Extract from supported, unsupported lists
-        for label in ["supported", "unsupported"]:
-            hyps = output.get(label, [])
-            if isinstance(hyps, list):
-                for hyp in hyps:
-                    if isinstance(hyp, str) and hyp.strip():
-                        hypotheses.append((hyp.strip(), label.upper()))
-    
-    elif task == "accent_drift":
-        # Extract from accent_invariant (TRUE) and accent_sensitive_lures (FALSE)
-        accent_invariant_hyps = output.get("accent_invariant", [])
-        if isinstance(accent_invariant_hyps, list):
-            for hyp in accent_invariant_hyps:
-                if isinstance(hyp, str) and hyp.strip():
-                    hypotheses.append((hyp.strip(), "TRUE"))
+    if "output" in record and isinstance(record["output"], dict):
+        output = record["output"]
         
-        accent_sensitive_hyps = output.get("accent_sensitive_lures", [])
-        if isinstance(accent_sensitive_hyps, list):
-            for hyp in accent_sensitive_hyps:
-                if isinstance(hyp, str) and hyp.strip():
-                    hypotheses.append((hyp.strip(), "FALSE"))
+        if task == "nli":
+            for key in ["entailment", "contradiction", "neutral"]:
+                if key in output:
+                    hyps = output[key] if isinstance(output[key], list) else [output[key]]
+                    for hyp in hyps:
+                        if isinstance(hyp, dict):
+                            hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
+                        else:
+                            hypotheses.append((str(hyp), key.upper()))
+        
+        elif task == "consistency":
+            for key in ["consistent", "inconsistent"]:
+                if key in output:
+                    hyps = output[key] if isinstance(output[key], list) else [output[key]]
+                    for hyp in hyps:
+                        if isinstance(hyp, dict):
+                            hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
+                        else:
+                            hypotheses.append((str(hyp), key.upper()))
+        
+        elif task == "plausibility":
+            for key in ["plausible", "implausible"]:
+                if key in output:
+                    hyps = output[key] if isinstance(output[key], list) else [output[key]]
+                    for hyp in hyps:
+                        if isinstance(hyp, dict):
+                            hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
+                        else:
+                            hypotheses.append((str(hyp), key.upper()))
+        
+        elif task == "restraint":
+            for key in ["supported", "unsupported"]:
+                if key in output:
+                    hyps = output[key] if isinstance(output[key], list) else [output[key]]
+                    for hyp in hyps:
+                        if isinstance(hyp, dict):
+                            hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
+                        else:
+                            hypotheses.append((str(hyp), key.upper()))
+        
+        elif task == "accent_drift":
+            # accent_invariant should be TRUE, accent_sensitive_lures should be FALSE
+            accent_invariant_hyps = output.get("accent_invariant", [])
+            if isinstance(accent_invariant_hyps, list):
+                for hyp in accent_invariant_hyps:
+                    if isinstance(hyp, dict):
+                        hypotheses.append((hyp.get("hypothesis", ""), "TRUE"))
+                    else:
+                        hypotheses.append((str(hyp), "TRUE"))
+            
+            accent_sensitive_hyps = output.get("accent_sensitive_lures", [])
+            if isinstance(accent_sensitive_hyps, list):
+                for hyp in accent_sensitive_hyps:
+                    if isinstance(hyp, dict):
+                        hypotheses.append((hyp.get("hypothesis", ""), "FALSE"))
+                    else:
+                        hypotheses.append((str(hyp), "FALSE"))
+    
+    if not hypotheses and "hypothesis" in record:
+        gold = record.get("gold", record.get("label", None))
+        hypotheses.append((record["hypothesis"], gold))
     
     return hypotheses
 
 
-# ========== AUDIO FILE FINDING ==========
-
 def find_audio_path(audio_dir: str, file_name: str) -> Optional[str]:
-    """Find audio file, handling various path formats."""
-    if not isinstance(file_name, str) or not file_name.strip():
+    """Find audio file path, handling various filename formats."""
+    if not file_name:
         return None
     
-    # Remove common prefixes
     basename = file_name
     for prefix in ["data/", "/data/", "Audio/", "/Audio/"]:
         if basename.startswith(prefix):
             basename = basename[len(prefix):]
     
-    basename = os.path.basename(basename)
+    if "/" in basename:
+        basename = basename.split("/")[-1]
     
-    # Try direct match
     candidate = os.path.join(audio_dir, basename)
     if os.path.isfile(candidate):
         return candidate
     
-    # Try with common extensions if no extension
     base, ext = os.path.splitext(basename)
     if not ext:
         for e in [".wav", ".flac", ".mp3"]:
@@ -267,58 +268,95 @@ def find_audio_path(audio_dir: str, file_name: str) -> Optional[str]:
 
 
 # ========== MODEL INTERFACE ==========
-# Customize this section for your specific model
 
-def init_model(model_path: str):
+def init_model(cfg_path: str, device: str = "cuda:0"):
     """
-    Initialize your model here.
-    Return model object that has a generate() method.
-    """
-    # Example for Kimi:
-    # from kimia_infer.api.kimia import KimiAudio
-    # return KimiAudio(model_path=model_path, load_detokenizer=True)
-    
-    # Example for other models:
-    # from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
-    # model = AutoModelForSpeechSeq2Seq.from_pretrained(model_path)
-    # processor = AutoProcessor.from_pretrained(model_path)
-    # return {"model": model, "processor": processor}
-    
-    raise NotImplementedError("Please implement init_model() for your model")
-
-
-def generate_with_model(model, messages: List[Dict], sampling_params: Dict, max_new_tokens: int) -> str:
-    """
-    Generate text using your model.
+    Initialize SALMONN model.
     
     Args:
-        model: Your model object
-        messages: List of message dicts with role/content
-        sampling_params: Model-specific sampling parameters
+        cfg_path: Path to SALMONN config file
+        device: Device to load model on
+    
+    Returns:
+        Dict with "model", "processor", "cfg", and "device" keys
+    """
+    # Create a minimal args object for Config
+    class Args:
+        def __init__(self):
+            self.cfg_path = cfg_path
+            self.options = None
+    
+    args = Args()
+    cfg = Config(args)
+    
+    model = SALMONN.from_config(cfg.config.model)
+    model.to(device)
+    model.eval()
+    
+    wav_processor = WhisperFeatureExtractor.from_pretrained(cfg.config.model.whisper_path)
+    
+    return {
+        "model": model,
+        "processor": wav_processor,
+        "cfg": cfg,
+        "device": device
+    }
+
+
+def generate_with_model(model_dict: Dict, audio_path: str, prompt: str, max_new_tokens: int = 512) -> str:
+    """
+    Generate text using SALMONN.
+    
+    Args:
+        model_dict: Dict with "model", "processor", "cfg", and "device" keys
+        audio_path: Path to audio file
+        prompt: Text prompt
         max_new_tokens: Maximum tokens to generate
     
     Returns:
         Generated text string
     """
-    # Example for Kimi:
-    # _, text = model.generate(messages, **sampling_params, output_type="text", max_new_tokens=max_new_tokens)
-    # return text
+    model = model_dict["model"]
+    wav_processor = model_dict["processor"]
+    cfg = model_dict["cfg"]
+    device = model_dict["device"]
     
-    # Example for other models:
-    # inputs = processor(messages, return_tensors="pt")
-    # outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
-    # return processor.decode(outputs[0], skip_special_tokens=True)
+    # Prepare audio sample
+    samples = prepare_one_sample(audio_path, wav_processor)
     
-    raise NotImplementedError("Please implement generate_with_model() for your model")
+    # Format prompt using SALMONN's template
+    formatted_prompt = [
+        cfg.config.model.prompt_template.format("<Speech><SpeechHere></Speech> " + prompt.strip())
+    ]
+    
+    # Generate
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            output_list = model.generate(samples, cfg.config.generate, prompts=formatted_prompt)
+            output = output_list[0] if output_list else ""
+    
+    # Strip control characters and whitespace
+    if output:
+        # Remove control characters (like \u0003 ETX)
+        output = ''.join(char for char in output if ord(char) >= 32 or char in '\n\t')
+        # Strip leading/trailing whitespace
+        output = output.strip()
+        # Remove the prompt template if it appears in the output
+        # The model might echo back the prompt, so extract only the response
+        if "ASSISTANT:" in output:
+            output = output.split("ASSISTANT:")[-1].strip()
+    
+    return output
 
 
 # ========== MAIN INFERENCE LOOP ==========
 
 def main():
-    parser = argparse.ArgumentParser(description="Run audio entailment inference on JSONL files")
+    parser = argparse.ArgumentParser(description="Run SALMONN inference on JSONL files")
     
     # Model
-    parser.add_argument("--model_path", type=str, required=True, help="Path to model")
+    parser.add_argument("--cfg_path", type=str, required=True, help="Path to SALMONN config file")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device (cuda:0, cuda:1, etc.)")
     
     # Input
     parser.add_argument("--jsonl_path", type=str, required=True, help="Input JSONL file with hypotheses")
@@ -329,16 +367,11 @@ def main():
     
     # Output
     parser.add_argument("--out_jsonl", type=str, required=True, help="Output JSONL file")
-    parser.add_argument("--out_json", type=str, default=None, help="Optional: output JSON file")
     
     # Limits
     parser.add_argument("--max_rows", type=int, default=-1, help="Limit number of rows (-1 = all)")
     parser.add_argument("--resume", action="store_true", help="Skip items already in out_jsonl")
     parser.add_argument("--max_new_tokens", type=int, default=512, help="Max tokens for generation")
-    
-    # Model-specific sampling params (customize as needed)
-    parser.add_argument("--temperature", type=float, default=0.0, help="Text generation temperature")
-    parser.add_argument("--top_k", type=int, default=5, help="Top-k sampling")
     
     args = parser.parse_args()
     
@@ -347,28 +380,26 @@ def main():
         raise FileNotFoundError(f"JSONL not found: {args.jsonl_path}")
     if not os.path.isdir(args.audio_dir):
         raise FileNotFoundError(f"Audio dir not found: {args.audio_dir}")
+    if not os.path.isfile(args.cfg_path):
+        raise FileNotFoundError(f"Config file not found: {args.cfg_path}")
     
     # Initialize model
-    print(f"Initializing model from {args.model_path}...")
-    model = init_model(args.model_path)
+    print(f"Initializing SALMONN from {args.cfg_path}...")
+    model_dict = init_model(args.cfg_path, device=args.device)
+    print("Model loaded successfully!")
     
-    # Sampling params (customize per model)
-    sampling_params = {
-        "temperature": args.temperature,
-        "top_k": args.top_k,
-        # Add model-specific params here
-    }
+    # Load prompt template
+    if args.task not in PROMPTS:
+        raise ValueError(f"Unknown task: {args.task}")
+    prompt_template = PROMPTS[args.task]
     
-    # Load JSONL
+    # Load input JSONL
     print(f"Loading JSONL from {args.jsonl_path}...")
     records = []
-    with open(args.jsonl_path, 'r', encoding='utf-8') as f:
+    with open(args.jsonl_path, "r") as f:
         for line in f:
             if line.strip():
-                try:
-                    records.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    print(f"Warning: Skipping invalid JSON line: {e}")
+                records.append(json.loads(line))
     
     if args.max_rows > 0:
         records = records[:args.max_rows]
@@ -379,26 +410,18 @@ def main():
     seen_item_ids = set()
     if args.resume and os.path.isfile(args.out_jsonl):
         print(f"Resuming from {args.out_jsonl}...")
-        with open(args.out_jsonl, 'r') as f:
+        with open(args.out_jsonl, "r") as f:
             for line in f:
                 if line.strip():
-                    try:
-                        obj = json.loads(line)
-                        if "item_id" in obj:
-                            seen_item_ids.add(obj["item_id"])
-                    except:
-                        pass
+                    obj = json.loads(line)
+                    seen_item_ids.add(obj.get("item_id"))
+        print(f"Found {len(seen_item_ids)} existing items")
     
-    # Get prompt template
-    prompt_template = PROMPTS.get(args.task)
-    if not prompt_template:
-        raise ValueError(f"Unknown task: {args.task}")
-    
-    # Open output file
+    # Create output directory
     os.makedirs(os.path.dirname(args.out_jsonl) or ".", exist_ok=True)
-    jsonl_mode = "a" if args.resume and os.path.isfile(args.out_jsonl) else "w"
     
-    all_results = {}
+    # Inference loop
+    jsonl_mode = "a" if args.resume else "w"
     n_items = 0
     n_skipped = 0
     n_errors = 0
@@ -434,36 +457,26 @@ def main():
                     }
                     out_f.write(json.dumps(obj) + "\n")
                     out_f.flush()
-                    all_results[item_id] = obj
                     n_errors += 1
                     continue
                 
                 # Build prompt
                 if args.task == "intent":
-                    # Intent needs options - extract from hypotheses
                     options = "\n".join([f"- {h}" for h, _ in hypotheses])
                     prompt = prompt_template.format(options=options, hypothesis=hypothesis)
                 else:
                     prompt = prompt_template.format(hypothesis=hypothesis)
                 
-                # Build messages (customize per model API)
-                messages = [
-                    {"role": "user", "message_type": "text", "content": prompt},
-                    {"role": "user", "message_type": "audio", "content": audio_path},
-                ]
-                
                 try:
                     # Generate
-                    text = generate_with_model(model, messages, sampling_params, args.max_new_tokens)
+                    text = generate_with_model(model_dict, audio_path, prompt, args.max_new_tokens)
                     
                     # Retry if empty
                     retry_count = 0
                     if not text or not text.strip():
                         retry_count = 1
-                        retry_params = sampling_params.copy()
-                        retry_params["temperature"] = 0.0
-                        retry_params["top_k"] = 1
-                        text = generate_with_model(model, messages, retry_params, args.max_new_tokens)
+                        # SALMONN doesn't have temperature control in the same way, so just retry
+                        text = generate_with_model(model_dict, audio_path, prompt, args.max_new_tokens)
                     
                     pred = normalize_label(text, args.task)
                     
@@ -481,7 +494,6 @@ def main():
                     }
                     out_f.write(json.dumps(obj) + "\n")
                     out_f.flush()
-                    all_results[item_id] = obj
                     n_items += 1
                     
                     if n_items % 50 == 0:
@@ -505,19 +517,12 @@ def main():
                     }
                     out_f.write(json.dumps(obj) + "\n")
                     out_f.flush()
-                    all_results[item_id] = obj
                     n_errors += 1
                     print(f"Failed {item_id}: {err}")
-    
-    # Write JSON snapshot
-    if args.out_json:
-        with open(args.out_json, "w") as f:
-            json.dump(all_results, f, indent=2)
     
     print(
         f"\nDone.\n"
         f"- Saved JSONL: {args.out_jsonl}\n"
-        f"- Saved JSON: {args.out_json or 'N/A'}\n"
         f"- Items processed: {n_items}\n"
         f"- Items skipped (resume): {n_skipped}\n"
         f"- Errors: {n_errors}\n"

@@ -222,6 +222,10 @@ outputs/
 !outputs/README.md
 !outputs/**/README.md
 
+# Result directories - exclude large JSONL files
+result/**/*.jsonl
+result/**/*.json
+
 # Large files
 *.zip
 *.tar.gz
@@ -232,3 +236,12 @@ outputs/
 # Downloaded datasets and cache
 .cache/
 *.cache
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Nested git repos
+AudioEntailment/.git/
+Entailment/AudioEntailment/.git/
