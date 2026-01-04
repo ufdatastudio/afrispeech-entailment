@@ -230,10 +230,10 @@ def main():
     parser.add_argument("--variant", type=str, default=None, 
                        help="Model variant (e.g., 'base' or 'think' for Audio Flamingo 3)")
     parser.add_argument("--config", type=str, 
-                       default="/orange/ufdatastudios/c.okocha/Afro_entailment/inference/task_config.json",
+                       default="/orange/ufdatastudios/c.okocha/afrispeech-entailment/inference/task_config.json",
                        help="Task configuration file")
     parser.add_argument("--template", type=str,
-                       default="/orange/ufdatastudios/c.okocha/Afro_entailment/inference/templates/run_infer.sh",
+                       default="/orange/ufdatastudios/c.okocha/afrispeech-entailment/inference/templates/run_infer.sh",
                        help="SLURM script template")
     parser.add_argument("--venv_path", type=str, default=None,
                        help="Custom virtual environment path (if different from project_dir/.venv)")

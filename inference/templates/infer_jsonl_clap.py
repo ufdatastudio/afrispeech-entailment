@@ -351,13 +351,6 @@ def main():
                 print(f"Warning: No hypotheses found for record {record_idx}")
                 continue
             
-            # For each hypothesis, we need to compare it with all other hypotheses for the same audio
-            # But CLAP works differently - we compute similarity for each hypothesis independently
-            # and pick the one with highest similarity
-            
-            # Build text candidates with prompt template
-            candidates = build_text_candidates(prompt_template, hypotheses)
-            
             if not audio_path:
                 # No audio - write error for all hypotheses
                 for hyp_idx, (hyp_text, gold_label) in enumerate(hypotheses):
@@ -384,27 +377,12 @@ def main():
                 continue
             
             try:
-                # Load audio and get embedding
+                # Load audio and get embedding (once per audio)
                 wav = load_audio_48k(audio_path)
                 audio_emb = model.get_audio_embedding_from_data(x=[wav], use_tensor=False)
                 audio_emb = np.asarray(audio_emb).reshape(-1)
                 
-                # Get text embeddings for all candidates
-                candidate_texts = [cand[0] for cand in candidates]
-                text_embs = model.get_text_embedding(candidate_texts, use_tensor=False)
-                text_embs = [np.asarray(t).reshape(-1) for t in text_embs]
-                
-                # Compute similarities
-                sims = [cosine_sim(audio_emb, t) for t in text_embs]
-                
-                # Find best match
-                best_i = int(np.argmax(sims))
-                pred_label = candidates[best_i][1]
-                
-                # Build scores dict
-                scores = {candidates[i][1]: float(sims[i]) for i in range(len(candidates))}
-                
-                # Write result for each hypothesis (for compatibility with evaluation)
+                # Process each hypothesis individually
                 for hyp_idx, (hyp_text, gold_label) in enumerate(hypotheses):
                     item_id = f"{base_id}__hyp_{hyp_idx}"
                     
@@ -412,8 +390,53 @@ def main():
                         n_skipped += 1
                         continue
                     
-                    # For this specific hypothesis, check if it's the predicted one
-                    is_predicted = (hyp_idx == best_i)
+                    # For tasks with label templates (nli, consistency, plausibility, restraint, accent_drift)
+                    # Compute similarity against all possible label templates
+                    if args.task in LABELS:
+                        possible_labels = LABELS[args.task]
+                        
+                        # Create label-specific templates for this hypothesis
+                        label_templates = []
+                        for label in possible_labels:
+                            if args.task == "consistency":
+                                label_template = f"Given the audio, the following statement is {label}: {hyp_text}"
+                            elif args.task == "plausibility":
+                                label_template = f"Given the audio, the following statement is {label}: {hyp_text}"
+                            elif args.task == "restraint":
+                                label_template = f"Given the audio, the following statement is {label}: {hyp_text}"
+                            elif args.task == "accent_drift":
+                                label_template = f"Given the audio, the following statement is {label}: {hyp_text}"
+                            elif args.task == "nli":
+                                label_template = f"Given the audio, the following statement is {label}: {hyp_text}"
+                            else:
+                                # Fallback to using prompt template
+                                label_template = prompt_template.format(hyp=hyp_text)
+                            label_templates.append(label_template)
+                        
+                        # Get text embeddings for all label templates
+                        text_embs = model.get_text_embedding(label_templates, use_tensor=False)
+                        text_embs = [np.asarray(t).reshape(-1) for t in text_embs]
+                        
+                        # Compute similarities
+                        sims = [cosine_sim(audio_emb, t) for t in text_embs]
+                        
+                        # Create scores dict mapping label names (uppercase) to scores
+                        score_dict = {label.upper(): float(sims[i]) for i, label in enumerate(possible_labels)}
+                        
+                        # Find best label (highest similarity)
+                        best_label_idx = int(np.argmax(sims))
+                        pred_label = possible_labels[best_label_idx].upper()
+                    
+                    else:
+                        # For tasks without label templates (intent, commonsense), use original approach
+                        candidates = build_text_candidates(prompt_template, [(hyp_text, gold_label)])
+                        candidate_texts = [cand[0] for cand in candidates]
+                        text_embs = model.get_text_embedding(candidate_texts, use_tensor=False)
+                        text_embs = [np.asarray(t).reshape(-1) for t in text_embs]
+                        sims = [cosine_sim(audio_emb, t) for t in text_embs]
+                        score_dict = {candidates[i][1]: float(sims[i]) for i in range(len(candidates))}
+                        best_label_idx = int(np.argmax(sims))
+                        pred_label = candidates[best_label_idx][1]
                     
                     obj = {
                         "item_id": item_id,
@@ -421,12 +444,9 @@ def main():
                         "audio_path": audio_path,
                         "hypothesis": hyp_text,
                         "gold": gold_label,
-                        "pred": pred_label if is_predicted else None,  # Only set pred for the best match
+                        "pred": pred_label,
                         "pred_raw": None,  # CLAP doesn't generate text
-                        "scores": scores,
-                        "best_match_idx": best_i,
-                        "best_match_hypothesis": candidates[best_i][0],
-                        "best_match_label": pred_label,
+                        "scores": score_dict,
                         "error": None,
                         "ts": datetime.utcnow().isoformat() + "Z",
                     }
