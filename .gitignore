@@ -35,6 +35,8 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+*.out
+*.err
 
 # Unit test / coverage reports
 htmlcov/
@@ -138,6 +140,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.venvASR/
 env/
 venv/
 ENV/
@@ -232,6 +235,11 @@ result/**/*.json
 *.tar.bz2
 *.7z
 *.rar
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
 
 # Downloaded datasets and cache
 .cache/

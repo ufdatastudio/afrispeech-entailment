@@ -1,0 +1,13 @@
+Model,Script,model_path,max_new_tokens,temperature,top_k,top_p,audio_temperature,audio_top_k,version,other_params
+Qwen2.5Omni,inference/templates/infer_jsonl.py,required,512,0.0,5,,,,,
+Qwen2AudioInstruct,inference/templates/infer_jsonl.py,required,512,0.0,5,,,,,
+SALMONN,inference/templates/infer_jsonl_salmonn.py,cfg_path (required),512,,,,,,"device=cuda:0; uses SALMONN config"
+Kimi,inference/templates/infer_jsonl.py + infer_jsonl_kimi_example.py,required,512,0.0,5,,0.8,10,,"audio_repetition_penalty=1.0; text_repetition_penalty=1.0"
+GAMA,inference/templates/infer_jsonl_gama.py,base_model_path + checkpoint_path (required),400,0.1,,0.95,,,"device=cuda; do_sample=True"
+AudioFlamingo2,inference/templates/infer_jsonl_audioflamingo2.py,nvidia/audio-flamingo-2 (default),512,0.0,5,,,,"dtype=auto"
+AudioFlamingo3,inference/templates/infer_jsonl.py,nvidia/audio-flamingo-3-hf,512,0.0,5,,,,,
+AudioFlamingo3Think,inference/templates/infer_jsonl.py,nvidia/audio-flamingo-3-think-hf,512,0.0,5,,,,,
+LAIONCLAP,inference/templates/infer_jsonl_clap.py,CLAP HF model (optional),N/A,N/A,N/A,,,,"cuda=optional; enable_fusion=optional; similarity-based (no generation)"
+MSCLAP_2023,inference/templates/infer_jsonl_msclap.py,N/A,N/A,N/A,N/A,,,2023,"use_cpu=optional; similarity-based (no generation)"
+MSCLAP_2022,inference/templates/infer_jsonl_msclap.py,N/A,N/A,N/A,N/A,,,2022,"use_cpu=optional; similarity-based (no generation)"
+

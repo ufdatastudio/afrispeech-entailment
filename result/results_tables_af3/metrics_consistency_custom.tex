@@ -1,0 +1,59 @@
+\begin{tabular}{llllllll}
+\toprule
+Dataset & Model (ALM) & Accuracy & Precision & Recall & F1 & Acc (Con) & Acc (Inc) \\
+\midrule
+AfriSpeech-200 & AudioFlamingo3\_original & 0.50 & 0.13 & 0.25 & 0.17 & 0.00 & 1.00 \\
+AfriSpeech-200 & AudioFlamingo3\_v2\_explicit & 0.53 & 0.52 & 0.36 & 0.28 & 0.07 & 1.00 \\
+AfriSpeech-200 & AudioFlamingo3\_v3\_simple & 0.53 & 0.31 & 0.21 & 0.16 & 0.06 & 1.00 \\
+AfriSpeech-General & AudioFlamingo3\_original & 0.50 & 0.17 & 0.33 & 0.22 & 0.00 & 1.00 \\
+AfriSpeech-General & AudioFlamingo3\_v2\_explicit & 0.54 & 0.24 & 0.16 & 0.14 & 0.09 & 1.00 \\
+AfriSpeech-General & AudioFlamingo3\_v3\_simple & 0.76 & 0.42 & 0.38 & 0.37 & 0.52 & 1.00 \\
+Medical & AudioFlamingo3\_original & 0.50 & 0.17 & 0.33 & 0.22 & 0.00 & 1.00 \\
+Medical & AudioFlamingo3\_v2\_explicit & 0.53 & 0.31 & 0.21 & 0.16 & 0.05 & 1.00 \\
+Medical & AudioFlamingo3\_v3\_simple & 0.64 & 0.79 & 0.64 & 0.58 & 0.28 & 1.00 \\
+\bottomrule
+\end{tabular}
+
+\vspace{1em}
+\subsection*{Prompt Variations}
+
+\noindent \textbf{Original Prompt} (used for AudioFlamingo3\_original):
+\begin{verbatim}
+You are given an audio recording and a text statement.
+
+Determine whether the text is consistent with the meaning conveyed in the audio.
+
+Respond with one of the following labels only:
+CONSISTENT
+INCONSISTENT
+
+STATEMENT:
+{hypothesis}
+\end{verbatim}
+
+\noindent \textbf{Explicit Prompt (v2)} (used for AudioFlamingo3\_v2\_explicit):
+\begin{verbatim}
+Listen carefully to the audio recording. Then read the statement below.
+
+Your task: Decide if the statement MATCHES or CONTRADICTS what is said in the audio.
+
+- If the statement accurately reflects what is said in the audio, respond: CONSISTENT
+- If the statement contradicts or misrepresents what is said in the audio, respond: INCONSISTENT
+
+Think about what you heard in the audio before answering.
+
+STATEMENT: {hypothesis}
+
+Your answer (CONSISTENT or INCONSISTENT):
+\end{verbatim}
+
+\noindent \textbf{Simple Prompt (v3)} (used for AudioFlamingo3\_v3\_simple):
+\begin{verbatim}
+Audio statement verification task.
+
+Does the following statement match what is said in the audio?
+
+Statement: {hypothesis}
+
+Answer with exactly one word - either CONSISTENT or INCONSISTENT:
+\end{verbatim}

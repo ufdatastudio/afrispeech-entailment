@@ -43,6 +43,24 @@ NEUTRAL
 STATEMENT:
 {hypothesis}""",
 
+    # interview_nli uses the same prompt structure as nli
+    "interview_nli": """You are given an audio recording of spoken speech and a text statement.
+
+Based only on the content of the audio, determine whether the statement is:
+- Entailed by the audio
+- Contradicted by the audio
+- Neither entailed nor contradicted by the audio
+
+Do not assume any information not present in the audio.
+
+Respond with one of the following labels only:
+ENTAILMENT
+CONTRADICTION
+NEUTRAL
+
+STATEMENT:
+{hypothesis}""",
+
     "consistency": """You are given an audio recording and a text statement.
 
 Determine whether the text is consistent with the meaning conveyed in the audio.
@@ -126,7 +144,7 @@ def normalize_label(text: str, task: str) -> str:
     
     text_lower = text.strip().lower()
     
-    if task == "nli":
+    if task in ("nli", "interview_nli"):
         if "entail" in text_lower or text_lower.startswith("entail"):
             return "ENTAILMENT"
         elif "contradict" in text_lower or text_lower.startswith("contradict"):
@@ -173,11 +191,21 @@ def normalize_label(text: str, task: str) -> str:
 def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]]]:
     """Extract hypotheses and gold labels from JSONL record."""
     hypotheses = []
+
+    # Handle interview_nli format with hypotheses list
+    if task == "interview_nli" and "hypotheses" in record:
+        raw_hyps = record.get("hypotheses", [])
+        if isinstance(raw_hyps, list):
+            for hyp in raw_hyps:
+                if isinstance(hyp, dict):
+                    hypotheses.append((hyp.get("text", ""), hyp.get("label", None)))
+                else:
+                    hypotheses.append((str(hyp), None))
     
     if "output" in record and isinstance(record["output"], dict):
         output = record["output"]
         
-        if task == "nli":
+        if task in ("nli", "interview_nli"):
             for key in ["entailment", "contradiction", "neutral"]:
                 if key in output:
                     hyps = output[key] if isinstance(output[key], list) else [output[key]]
@@ -435,7 +463,7 @@ def main():
     parser.add_argument("--jsonl_path", type=str, required=True, help="Input JSONL file with hypotheses")
     parser.add_argument("--audio_dir", type=str, required=True, help="Directory containing audio files")
     parser.add_argument("--task", type=str, required=True, 
-                       choices=["nli", "consistency", "plausibility", "intent", "commonsense", "restraint", "accent_drift"],
+                       choices=["nli", "consistency", "plausibility", "intent", "commonsense", "restraint", "accent_drift", "interview_nli"],
                        help="Task type")
     
     # Output
@@ -503,7 +531,11 @@ def main():
     
     with open(args.out_jsonl, jsonl_mode) as out_f:
         for record_idx, record in enumerate(records):
+            # Handle both file_name and audio_id fields
             file_name = record.get("file_name", "")
+            if args.task == "interview_nli" and not file_name and "audio_id" in record:
+                file_name = f"{record['audio_id']}.wav"
+            
             audio_path = find_audio_path(args.audio_dir, file_name)
             
             base_id = os.path.splitext(os.path.basename(file_name))[0]

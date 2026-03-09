@@ -41,6 +41,24 @@ NEUTRAL
 STATEMENT:
 {hypothesis}""",
 
+    # interview_nli uses the same prompt structure as nli
+    "interview_nli": """You are given an audio recording of spoken speech and a text statement.
+
+Based only on the content of the audio, determine whether the statement is:
+- Entailed by the audio
+- Contradicted by the audio
+- Neither entailed nor contradicted by the audio
+
+Do not assume any information not present in the audio.
+
+Respond with one of the following labels only:
+ENTAILMENT
+CONTRADICTION
+NEUTRAL
+
+STATEMENT:
+{hypothesis}""",
+
     "consistency": """You are given an audio recording and a text statement.
 
 Determine whether the text is consistent with the meaning conveyed in the audio.
@@ -124,14 +142,14 @@ def normalize_label(text: str, task: str) -> str:
     
     text_lower = text.strip().lower()
     
-    if task == "nli":
+    if task in ("nli", "interview_nli"):
         if "entail" in text_lower or text_lower.startswith("entail"):
             return "ENTAILMENT"
         elif "contradict" in text_lower or text_lower.startswith("contradict"):
             return "CONTRADICTION"
         elif "neutral" in text_lower or "neither" in text_lower:
             return "NEUTRAL"
-    
+
     elif task == "consistency":
         if "consistent" in text_lower:
             return "CONSISTENT"
@@ -171,11 +189,20 @@ def normalize_label(text: str, task: str) -> str:
 def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]]]:
     """Extract hypotheses and gold labels from JSONL record."""
     hypotheses = []
-    
+
+    if task == "interview_nli" and "hypotheses" in record:
+        raw_hyps = record.get("hypotheses", [])
+        if isinstance(raw_hyps, list):
+            for hyp in raw_hyps:
+                if isinstance(hyp, dict):
+                    hypotheses.append((hyp.get("text", ""), hyp.get("label", None)))
+                else:
+                    hypotheses.append((str(hyp), None))
+
     if "output" in record and isinstance(record["output"], dict):
         output = record["output"]
-        
-        if task == "nli":
+
+        if task in ("nli", "interview_nli"):
             for key in ["entailment", "contradiction", "neutral"]:
                 if key in output:
                     hyps = output[key] if isinstance(output[key], list) else [output[key]]
@@ -184,7 +211,7 @@ def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]
                             hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
                         else:
                             hypotheses.append((str(hyp), key.upper()))
-        
+
         elif task == "consistency":
             for key in ["consistent", "inconsistent"]:
                 if key in output:
@@ -194,17 +221,7 @@ def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]
                             hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
                         else:
                             hypotheses.append((str(hyp), key.upper()))
-        
-        elif task == "plausibility":
-            for key in ["plausible", "implausible"]:
-                if key in output:
-                    hyps = output[key] if isinstance(output[key], list) else [output[key]]
-                    for hyp in hyps:
-                        if isinstance(hyp, dict):
-                            hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
-                        else:
-                            hypotheses.append((str(hyp), key.upper()))
-        
+
         elif task == "restraint":
             for key in ["supported", "unsupported"]:
                 if key in output:
@@ -214,7 +231,7 @@ def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]
                             hypotheses.append((hyp.get("hypothesis", ""), hyp.get("label", None)))
                         else:
                             hypotheses.append((str(hyp), key.upper()))
-        
+
         elif task == "accent_drift":
             # accent_invariant should be TRUE, accent_sensitive_lures should be FALSE
             accent_invariant_hyps = output.get("accent_invariant", [])
@@ -224,7 +241,7 @@ def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]
                         hypotheses.append((hyp.get("hypothesis", ""), "TRUE"))
                     else:
                         hypotheses.append((str(hyp), "TRUE"))
-            
+
             accent_sensitive_hyps = output.get("accent_sensitive_lures", [])
             if isinstance(accent_sensitive_hyps, list):
                 for hyp in accent_sensitive_hyps:
@@ -232,11 +249,11 @@ def extract_hypotheses(record: Dict, task: str) -> List[Tuple[str, Optional[str]
                         hypotheses.append((hyp.get("hypothesis", ""), "FALSE"))
                     else:
                         hypotheses.append((str(hyp), "FALSE"))
-    
+
     if not hypotheses and "hypothesis" in record:
         gold = record.get("gold", record.get("label", None))
         hypotheses.append((record["hypothesis"], gold))
-    
+
     return hypotheses
 
 
@@ -362,7 +379,7 @@ def main():
     parser.add_argument("--jsonl_path", type=str, required=True, help="Input JSONL file with hypotheses")
     parser.add_argument("--audio_dir", type=str, required=True, help="Directory containing audio files")
     parser.add_argument("--task", type=str, required=True, 
-                       choices=["nli", "consistency", "plausibility", "intent", "commonsense", "restraint", "accent_drift"],
+                       choices=["nli", "interview_nli", "consistency", "plausibility", "intent", "commonsense", "restraint", "accent_drift"],
                        help="Task type")
     
     # Output
@@ -429,6 +446,8 @@ def main():
     with open(args.out_jsonl, jsonl_mode) as out_f:
         for record_idx, record in enumerate(records):
             file_name = record.get("file_name", "")
+            if args.task == "interview_nli" and not file_name and "audio_id" in record:
+                file_name = f"{record['audio_id']}.wav"
             audio_path = find_audio_path(args.audio_dir, file_name)
             
             base_id = os.path.splitext(os.path.basename(file_name))[0]

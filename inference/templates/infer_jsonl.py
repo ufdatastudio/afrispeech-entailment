@@ -109,6 +109,28 @@ FALSE
 
 STATEMENT:
 {hypothesis}""",
+
+    "interview_nli": """You are evaluating an audio interview about stuttering and speech experiences.
+
+Listen to what the speaker says in the audio, then determine the relationship between the audio and the following statement.
+
+Classification:
+- ENTAILMENT: The statement is supported by what is said in the audio
+- CONTRADICTION: The statement contradicts what is said in the audio
+- NEUTRAL: The statement is neither supported nor contradicted by the audio
+
+Important:
+- Base your answer ONLY on the audio content
+- Do not make assumptions beyond what is explicitly stated
+- Consider what the speaker actually says about their experiences
+
+Respond with exactly one label:
+ENTAILMENT
+CONTRADICTION
+NEUTRAL
+
+STATEMENT:
+{hypothesis}""",
 }
 
 
@@ -131,6 +153,8 @@ def normalize_label(text: str, task: str) -> str:
     t = text.strip().upper()
 
     if task == "nli":
+        match = _match_label(t, ("ENTAILMENT", "CONTRADICTION", "NEUTRAL"))
+    elif task == "interview_nli":
         match = _match_label(t, ("ENTAILMENT", "CONTRADICTION", "NEUTRAL"))
     elif task == "consistency":
         match = _match_label(t, ("INCONSISTENT", "CONSISTENT"))

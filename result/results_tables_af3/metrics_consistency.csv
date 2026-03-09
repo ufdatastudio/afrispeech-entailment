@@ -1,0 +1,10 @@
+task,dataset,alm,N,ACC,P_macro,R_macro,F1_macro,ACC_consistent,ACC_inconsistent
+consistency,AfriSpeech-200,AudioFlamingo3_original,206,0.5,0.0,0.0,0.0,,
+consistency,AfriSpeech-200,AudioFlamingo3_v2_explicit,206,0.5339805825242718,0.0,0.0,0.0,,
+consistency,AfriSpeech-200,AudioFlamingo3_v3_simple,206,0.529126213592233,0.0,0.0,0.0,,
+consistency,AfriSpeech-General,AudioFlamingo3_original,116,0.5,0.0,0.0,0.0,,
+consistency,AfriSpeech-General,AudioFlamingo3_v2_explicit,116,0.5431034482758621,0.0,0.0,0.0,,
+consistency,AfriSpeech-General,AudioFlamingo3_v3_simple,116,0.7586206896551724,0.0,0.0,0.0,,
+consistency,Medical,AudioFlamingo3_original,80,0.5,0.0,0.0,0.0,,
+consistency,Medical,AudioFlamingo3_v2_explicit,80,0.525,0.0,0.0,0.0,,
+consistency,Medical,AudioFlamingo3_v3_simple,80,0.6375,0.0,0.0,0.0,,
