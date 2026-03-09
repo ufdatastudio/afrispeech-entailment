@@ -128,27 +128,9 @@ The benchmark supports five audio–semantic reasoning tasks:
 
 ### Tier 2: Extension & Ablation Tasks
 
-3. **Audio–Intent Inference**
-   - Goal: Infer speaker intent (e.g., support, explanation, request)
-   - Used primarily for institutional and medical speech
-
-4. **Semantic Plausibility Judgment**
+3. **Semantic Plausibility Judgment**
    - Labels: Plausible / Implausible
    - Goal: Assess commonsense alignment without strict logical entailment
-
-5. **Spoken Commonsense Reasoning**
-   - Goal: Infer unstated but obvious world knowledge
-   - Example: Audio: "I second the motion." → Question: "Is a formal decision-making process occurring?"
-
-### Dataset–Task Alignment
-
-| Dataset | NLI | Consistency | Intent | Plausibility | Commonsense |
-|---------|-----|-------------|--------|--------------|-------------|
-| AfriSpeech–Parliament | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ |
-| Medical | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐ |
-| AfriSpeech-200 | ⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐ |
-| General | ⭐ | ⭐⭐ | ⭐ | ⭐⭐ | ❌ |
-| AfriNames | ❌ | ⭐⭐ | ❌ | ❌ | ❌ |
 
 ### AfriNames: Fairness & Robustness Diagnostics
 
@@ -197,31 +179,6 @@ python separate_audio_files.py
 
 Hypotheses are generated using LLM runners. Each dataset has corresponding runners for different tasks.
 
-### Available Runners
-
-#### Parliament Dataset
-- `run_llama_parliament_entailment.py` - NLI hypotheses
-- `run_llama_parliament_consistency.py` - Consistency statements
-- `run_llama_parliament_intent.py` - Intent inference
-- `run_llama_parliament_commonsense.py` - Commonsense reasoning
-
-#### Medical Dataset
-- `run_llama_medical_nli.py` - NLI hypotheses
-- `run_llama_medical_consistency.py` - Consistency statements
-- `run_llama_medical_plausibility.py` - Plausibility judgments
-
-#### AfriSpeech-200 Dataset
-- `run_llama_afrispeech200_nli.py` - NLI hypotheses
-- `run_llama_afrispeech200_consistency.py` - Consistency statements
-- `run_llama_afrispeech200_plausibility.py` - Plausibility judgments
-
-#### AfriSpeech-General Dataset
-- `run_llama_afrispeech_general_consistency.py` - Consistency statements
-- `run_llama_afrispeech_general_plausibility.py` - Plausibility judgments
-
-#### AfriNames Dataset
-- `run_llama_afri_names_restraint.py` - Semantic restraint evaluation
-- `run_llama_afri_names_accent.py` - Accent drift evaluation
 
 ### Usage Example
 
@@ -237,10 +194,6 @@ python -m Entailment.models.runners.run_llama_medical_consistency \
   --csv_path Entailment/metadata_medical.csv \
   --output_dir result/Entailment/Medical/Llama/consistency
 
-# Generate restraint hypotheses for AfriNames
-python -m Entailment.models.runners.run_llama_afri_names_restraint \
-  --csv_path Entailment/metadata_afri-names.csv \
-  --output_dir result/Entailment/AfriNames/Llama/restraint
 ```
 
 ### Output Format
